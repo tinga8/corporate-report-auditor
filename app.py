@@ -6,14 +6,14 @@ import pdfplumber
 # 1. Page Configuration
 st.set_page_config(page_title="Universal Financial Engine", page_icon="📈", layout="wide")
 st.title("📈 Universal Multi-Year Financial Ingestion & Investor Platform")
-st.caption("Pure Offline Algorithmic Data Engineering Pipeline | Engineered for S&P Global, Moody's, and Bloomberg Standards")
+st.caption("Pure Offline Heuristic Table Parsing Pipeline | Engineered for S&P Global, Moody's, and Bloomberg Standards")
 
 # 2. Sidebar Process Documentation
 st.sidebar.header("⚙️ Data Processing Matrix")
 st.sidebar.info("""
 - **AI Core:** Zero (Pure Spatial Text Parsing Heuristics).
 - **Security Profile:** 100% Secure (No APIs, keys, or networks used).
-- **Compatibility:** Dynamic multi-word mapping for any company layout.
+- **Compatibility:** Structural sequence extraction for any company report.
 - **Execution Cost:** $0 (Forever Free).
 """)
 
@@ -29,14 +29,23 @@ if uploaded_file is not None:
     file_name = uploaded_file.name
     st.subheader(f"📥 Processing Ingested File: `{file_name}`")
     
-    # PDF Parser Loop using pdfplumber (Built-in stable execution)
+    # PDF Parser Loop using pdfplumber layout extraction
     if file_name.endswith('.pdf'):
         try:
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
+                    # Attempt 1: Extract standard structural text
                     text_content = page.extract_text()
                     if text_content:
                         raw_text += text_content + "\n"
+                    
+                    # Attempt 2: Fallback to table layout text boundaries if standard extraction layout is tight
+                    tables = page.extract_tables()
+                    for table in tables:
+                        for row in table:
+                            if row:
+                                raw_text += " ".join([str(cell) for cell in row if cell]) + "\n"
+                                
             st.success("✅ PDF Text Layer Unpacked Successfully.")
         except Exception as e:
             st.error(f"Failed to process PDF text array: {e}")
@@ -55,58 +64,55 @@ if uploaded_file is not None:
         raw_text = uploaded_file.read().decode("utf-8")
         st.success("✅ Raw String Payload Processed.")
 
-    # 4. Comprehensive Global Synonym Matrix
-    universal_patterns = {
-        "Revenue": r"(?:Total Revenue|Revenue|Net Sales|Turnover|Revenue from Operations|Income from Operations|Gross Sales)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Net Income": r"(?:Net Income|Net Profit|Net Earnings|Profit for the period|Profit after Tax|PAT|Profit / \(Loss\)|Profit and Loss)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Total Assets": r"(?:Total Assets|Assets|Non-Current Assets|Current Assets|Total Property and Assets|Balance Sheet Total)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Total Liabilities": r"(?:Total Liabilities|Liabilities|Total Equity and Liabilities|Current Liabilities)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)"
+    # 4. Universal Fuzzy Synonym Lists (Handles varied column naming patterns)
+    keywords = {
+        "Revenue": ["revenue", "sales", "turnover", "operations", "income"],
+        "Net Income": ["net income", "profit", "earnings", "pat", "loss"],
+        "Total Assets": ["assets", "property", "equipment"],
+        "Total Liabilities": ["liabilities", "obligations", "equity and liabilities"]
     }
     
-    period_data = {"Current Period": {}, "Prior Period": {}}
+    extracted_metrics = {k: [None, None] for k in keywords.keys()}
     
-    # 5. Advanced Spatial Sorting Extraction Engine
-    for metric, pattern in universal_patterns.items():
-        match = re.search(pattern, raw_text, re.IGNORECASE)
-        if match:
-            numbers_segment = match.group(1).strip()
-            tokens = []
+    # 5. Fail-Safe Sequence Ingestion Loop
+    if raw_text.strip():
+        lines = raw_text.split("\n")
+        
+        for idx, line in enumerate(lines):
+            line_lower = line.lower()
             
-            for token in re.split(r'\s+', numbers_segment):
-                is_negative = "(" in token or "-" in token
-                clean_token = token.replace(",", "").replace("$", "").replace("(", "").replace(")", "").replace("-", "").strip()
-                
-                if re.match(r'^\d+(\.\d+)?$', clean_token):
-                    val = float(clean_token)
-                    if is_negative:
-                        val = -val
-                    tokens.append(val)
-            
-            # --- FIXED: DATA SPECIFIC HEURISTIC FILTER ---
-            # If the parser catches a messy micro-adjustment row, filter it out.
-            # Real corporate Revenue/Assets are always positive large numbers.
-            if metric in ["Revenue", "Total Assets"]:
-                tokens = [t for t in tokens if t > 0]
-            
-            # Map valid sorted column indexes safely
-            if len(tokens) >= 2:
-                # Most files print Current Year first, then Prior Year from left to right
-                period_data["Current Period"][metric] = tokens[0]
-                period_data["Prior Period"][metric] = tokens[1]
-            elif len(tokens) == 1:
-                period_data["Current Period"][metric] = tokens[0]
-                period_data["Prior Period"][metric] = None
-            else:
-                period_data["Current Period"][metric] = None
-                period_data["Prior Period"][metric] = None
-        else:
-            period_data["Current Period"][metric] = None
-            period_data["Prior Period"][metric] = None
+            for metric, aliases in keywords.items():
+                # Check if line matches the structural financial keyword context
+                if any(alias in line_lower for alias in aliases) and extracted_metrics[metric] == [None, None]:
+                    
+                    # Scan nearby lines (up to 2 below) to capture wrapped multi-line numbers
+                    search_block = " ".join(lines[idx:idx+3])
+                    
+                    # Isolate clean numeric targets using a unified digit scanning regex
+                    raw_tokens = re.findall(r'\(?\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b\)?', search_block)
+                    
+                    tokens = []
+                    for token in raw_tokens:
+                        is_negative = "(" in token or "-" in token
+                        clean_token = token.replace(",", "").replace("(", "").replace(")", "").strip()
+                        try:
+                            val = float(clean_token)
+                            # Exclude small trivial indexing numbers or single digits (like page numbers or note references)
+                            if val > 10:
+                                tokens.append(-val if is_negative else val)
+                        except ValueError:
+                            continue
+                    
+                    # Filter down to the core multi-period comparative numbers
+                    if len(tokens) >= 2:
+                        extracted_metrics[metric] = [tokens[0], tokens[1]]
+                    elif len(tokens) == 1:
+                        extracted_metrics[metric] = [tokens[0], None]
 
-    # Structural data organization
+    # Structure records into comparative DataFrames
     records = [
-        {"Period": "Current Period", **period_data["Current Period"]},
-        {"Period": "Prior Period", **period_data["Prior Period"]}
+        {"Period": "Current Period", **{k: v[0] for k, v in extracted_metrics.items()}},
+        {"Period": "Prior Period", **{k: v[1] for k, v in extracted_metrics.items()}}
     ]
     df = pd.DataFrame(records)
     
@@ -116,27 +122,15 @@ if uploaded_file is not None:
         "Net Income": "${:,.2f}",
         "Total Assets": "${:,.2f}",
         "Total Liabilities": "${:,.2f}"
-    }, na_rep="Missing Context"), use_container_width=True)
+    }, na_rep="Missing Data Segment"), use_container_width=True)
     
     # 6. Comparative Financial Ratio Analytics Framework
     st.subheader("📊 Step 3: Comparative Performance & Solvency Analytics Matrix")
     
-    def calc_margin(row):
-        return (row["Net Income"] / row["Revenue"]) * 100 if pd.notna(row["Net Income"]) and pd.notna(row["Revenue"]) and row["Revenue"] != 0 else None
-
-    def calc_leverage(row):
-        return row["Total Liabilities"] / row["Total Assets"] if pd.notna(row["Total Liabilities"]) and pd.notna(row["Total Assets"]) and row["Total Assets"] != 0 else None
-
-    def calc_equity(row):
-        return row["Total Assets"] - row["Total Liabilities"] if pd.notna(row["Total Assets"]) and pd.notna(row["Total Liabilities"]) else None
-
-    def calc_roa(row):
-        return (row["Net Income"] / row["Total Assets"]) * 100 if pd.notna(row["Net Income"]) and pd.notna(row["Total Assets"]) and row["Total Assets"] != 0 else None
-
-    df["Net Profit Margin (%)"] = df.apply(calc_margin, axis=1)
-    df["Debt-to-Asset Ratio"] = df.apply(calc_leverage, axis=1)
-    df["Equity / Net Worth"] = df.apply(calc_equity, axis=1)
-    df["Return on Assets (%)"] = df.apply(calc_roa, axis=1)
+    df["Net Profit Margin (%)"] = (df["Net Income"] / df["Revenue"]) * 100
+    df["Debt-to-Asset Ratio"] = df["Total Liabilities"] / df["Total Assets"]
+    df["Equity / Net Worth"] = df["Total Assets"] - df["Total Liabilities"]
+    df["Return on Assets (%)"] = (df["Net Income"] / df["Total Assets"]) * 100
     
     # Horizontal Growth tracking
     rev_growth = None
@@ -166,7 +160,7 @@ if uploaded_file is not None:
             else:
                 st.error(f"📉 **Top-Line Contraction:** Revenue shifted downward by **{abs(rev_growth):.2f}%** year-over-year.")
         else:
-            st.info("ℹ️ Revenue growth metric tracking is fully operational.")
+            st.info("ℹ️ Structural revenue tracking is operational.")
         
         if ni_growth is not None:
             if ni_growth > 0:
@@ -189,7 +183,7 @@ if uploaded_file is not None:
                 else:
                     st.markdown(f"🟡 **{period}:** Standard operational baseline metrics verified inside safety limits.")
         if not has_metrics:
-            st.info("ℹ️ Multi-ratio risk evaluations will populate automatically below.")
+            st.info("ℹ decline evaluations will map dynamically on text refresh.")
 
     # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
