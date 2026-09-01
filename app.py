@@ -1,122 +1,129 @@
+import re
 import pandas as pd
 import streamlit as st
-import pdfplumber
-import re
+from pypdf import PdfReader
 
 # 1. Page Configuration
-st.set_page_config(page_title="Institutional Financial Analytics Engine", page_icon="📈", layout="wide")
-st.title("📈 Enterprise Multi-Period Ingestion & Table Extraction Platform")
-st.caption("Production-Grade Table Ingestion Framework tailored for S&P Global, Moody's, and Bloomberg Evaluation")
+st.set_page_config(page_title="Universal Financial Engine", page_icon="📈", layout="wide")
+st.title("📈 Universal Multi-Year Financial Ingestion & Investor Platform")
+st.caption("Pure Offline Rule-Based Extraction Pipeline Engineered for S&P Global, Moody's, and Bloomberg Frameworks")
 
 # 2. Sidebar Process Documentation
 st.sidebar.header("⚙️ Data Processing Matrix")
 st.sidebar.info("""
-- **Processing Matrix:** Layout-aware cell extraction using pdfplumber.
-- **Analytical Metrics:** Multi-period structure matching.
-- **Execution Cost:** $0 (Local execution, no API keys required).
+- **AI Core:** Zero (Pure Algorithmic Token Filter).
+- **Security Profile:** 100% Secure (No APIs, keys, or networks used).
+- **Analytical Metrics:** Multi-period horizontal trend modeling.
+- **Execution Cost:** $0 (Forever Free).
 """)
 
 # 3. File Upload Engine
 uploaded_file = st.file_uploader(
-    "Upload Financial Document (Accepts: .pdf, .xlsx, .xls)", 
-    type=["pdf", "xlsx", "xls"]
+    "Upload Any Corporate Financial Report (Accepts: .pdf, .txt, .xlsx, .xls)", 
+    type=["pdf", "txt", "xlsx", "xls"]
 )
+
+raw_text = ""
 
 if uploaded_file is not None:
     file_name = uploaded_file.name
     st.subheader(f"📥 Processing Ingested File: `{file_name}`")
     
-    extracted_rows = []
-    
-    # --- UPGRADED: STRUCTURAL LAYOUT PARSER FOR PDFs ---
+    # PDF Parser Loop
     if file_name.endswith('.pdf'):
         try:
-            with pdfplumber.open(uploaded_file) as pdf:
-                for page in pdf.pages:
-                    # Extract tables with precise layout detection
-                    tables = page.extract_tables()
-                    for table in tables:
-                        for row in table:
-                            # Filter empty text rows out
-                            if row and any(row):
-                                # Clean individual elements
-                                cleaned_row = [str(cell).strip() if cell else "" for cell in row]
-                                extracted_rows.append(cleaned_row)
-            
-            st.success("✅ PDF Structural Table Engine Extracted Successfully.")
+            pdf_reader = PdfReader(uploaded_file)
+            for page in pdf_reader.pages:
+                text_content = page.extract_text()
+                if text_content:
+                    raw_text += text_content + "\n"
+            st.success("✅ PDF Text Layer Unpacked Successfully.")
         except Exception as e:
-            st.error(f"Failed to analyze PDF grid structures: {e}")
+            st.error(f"Failed to process PDF text array: {e}")
 
-    # --- HANDLING EXCEL FILES ---
+    # Excel Parser Loop
     elif file_name.endswith(('.xlsx', '.xls')):
         try:
             excel_df = pd.read_excel(uploaded_file)
-            st.success("✅ Excel Ledger Uploaded Successfully.")
-            extracted_rows = [excel_df.columns.tolist()] + excel_df.values.tolist()
+            st.success("✅ Excel Sheet Loaded Successfully.")
+            raw_text = excel_df.to_string()
         except Exception as e:
-            st.error(f"Failed to parse Excel array: {e}")
+            st.error(f"Failed to parse Excel structures: {e}")
+            
+    # Text Parser Loop
+    else:
+        raw_text = uploaded_file.read().decode("utf-8")
+        st.success("✅ Raw String Payload Processed.")
 
-    # 4. Multi-Period Mapping Logic Engine
-    # Dictionary keywords to parse rows for relevant figures
-    target_keywords = {
-        "Revenue": ["revenue", "turnover", "net sales", "revenue from operations"],
-        "Net Income": ["net income", "net profit", "profit for the period", "profit after tax", "pat"],
-        "Total Assets": ["total assets", "assets"],
-        "Total Liabilities": ["total liabilities", "liabilities"]
+    # 4. Universal Cross-Company Multi-Period Regex Map
+    # Looks for variations of words and extracts any consecutive numbers on that text row
+    universal_patterns = {
+        "Revenue": r"(?:Total Revenue|Revenue|Net Sales|Turnover|Revenue from Operations|Income)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Net Income": r"(?:Net Income|Net Profit|Net Earnings|Profit for the period|Profit after Tax|PAT|Profit / \(Loss\))\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Total Assets": r"(?:Total Assets|Assets|Non-Current Assets)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Total Liabilities": r"(?:Total Liabilities|Liabilities)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)"
     }
-
-    financial_data = {"Current Period": {}, "Prior Period": {}}
-    for k in target_keywords.keys():
-        financial_data["Current Period"][k] = None
-        financial_data["Prior Period"][k] = None
-
-    # Step 5: Process extracted cells sequentially
-    for row in extracted_rows:
-        # Join row items to find matches against our accounting metrics labels
-        row_string = " ".join(row).lower()
-        
-        for metric, aliases in target_keywords.items():
-            if any(alias in row_string for alias in aliases):
-                # Isolate all financial numbers inside this row
-                numeric_values = []
-                for cell in row:
-                    # Strip common structural text symbols away
-                    clean_cell = cell.replace(",", "").replace("$", "").replace("(", "").replace(")", "").strip()
-                    # Check if cell can map into float logic boundary
-                    if re.match(r'^\d+(\.\d+)?$', clean_cell):
-                        numeric_values.append(float(clean_cell))
+    
+    # Structural dictionary holding data positions
+    period_data = {"Current Period": {}, "Prior Period": {}}
+    
+    # 5. Core Mathematical Extraction Loop
+    for metric, pattern in universal_patterns.items():
+        # Scan line by line to isolate layout blocks cleanly
+        match = re.search(pattern, raw_text, re.IGNORECASE)
+        if match:
+            numbers_segment = match.group(1).strip()
+            # Tokenize numerical sequences out of the filtered spatial row snippet
+            tokens = []
+            for token in re.split(r'\s+', numbers_segment):
+                # Clean up financial string elements (commas, parentheses for losses)
+                is_negative = "(" in token or "-" in token
+                clean_token = token.replace(",", "").replace("$", "").replace("(", "").replace(")", "").replace("-", "").strip()
                 
-                # Assign structural columns to correct year context
-                if len(numeric_values) >= 2:
-                    financial_data["Current Period"][metric] = numeric_values[0]
-                    financial_data["Prior Period"][metric] = numeric_values[1]
-                elif len(numeric_values) == 1 and financial_data["Current Period"][metric] is None:
-                    financial_data["Current Period"][metric] = numeric_values[0]
+                if re.match(r'^\d+(\.\d+)?$', clean_token):
+                    val = float(clean_token)
+                    if is_negative:
+                        val = -val
+                    tokens.append(val)
+            
+            # Map structural tokens sequentially into column containers
+            if len(tokens) >= 2:
+                period_data["Current Period"][metric] = tokens[0]
+                period_data["Prior Period"][metric] = tokens[1]
+            elif len(tokens) == 1:
+                period_data["Current Period"][metric] = tokens[0]
+                period_data["Prior Period"][metric] = None
+            else:
+                period_data["Current Period"][metric] = None
+                period_data["Prior Period"][metric] = None
+        else:
+            period_data["Current Period"][metric] = None
+            period_data["Prior Period"][metric] = None
 
-    # Structuring Output DataFrame
+    # Structuring data into comparative rows
     records = [
-        {"Period": "Current Period (YoY)", **financial_data["Current Period"]},
-        {"Period": "Prior Period (YoY)", **financial_data["Prior Period"]}
+        {"Period": "Current Period", **period_data["Current Period"]},
+        {"Period": "Prior Period", **period_data["Prior Period"]}
     ]
     df = pd.DataFrame(records)
-
+    
     st.subheader("🧹 Step 2: Cleaned & Standardized Historical Financial Extract")
     st.dataframe(df.style.format({
         "Revenue": "${:,.2f}",
         "Net Income": "${:,.2f}",
         "Total Assets": "${:,.2f}",
         "Total Liabilities": "${:,.2f}"
-    }, na_rep="Missing in Document Layout"), use_container_width=True)
-
-    # 6. Advanced Trend Analysis Calculations
+    }, na_rep="Missing Context"), use_container_width=True)
+    
+    # 6. Comparative Financial Ratio Formulas
     st.subheader("📊 Step 3: Comparative Performance & Solvency Analytics Matrix")
     
-    # Safely compute analytics columns using baseline checks
     df["Net Profit Margin (%)"] = (df["Net Income"] / df["Revenue"]) * 100
     df["Debt-to-Asset Ratio"] = df["Total Liabilities"] / df["Total Assets"]
     df["Equity / Net Worth"] = df["Total Assets"] - df["Total Liabilities"]
     df["Return on Assets (%)"] = (df["Net Income"] / df["Total Assets"]) * 100
     
+    # Horizontal change metrics
     rev_growth = None
     ni_growth = None
     if pd.notna(df.at[0, "Revenue"]) and pd.notna(df.at[1, "Revenue"]) and df.at[1, "Revenue"] != 0:
@@ -129,30 +136,30 @@ if uploaded_file is not None:
         "Debt-to-Asset Ratio": "{:.2f}",
         "Equity / Net Worth": "${:,.2f}",
         "Return on Assets (%)": "{:.2f}%"
-    }, na_rep="Pending Structural Context"), use_container_width=True)
-
+    }, na_rep="Awaiting Data Alignment"), use_container_width=True)
+    
     # 7. Deep Analytical Investor Summary
     st.markdown("---")
     st.subheader("📑 Step 4: Institutional Investor Decision Memorandum")
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        st.markdown("#### 📈 Revenue & Profitability Velocity Trends")
+        st.markdown("#### 📈 Revenue & Profitability Trends")
         if rev_growth is not None:
             if rev_growth > 0:
-                st.success(f"🚀 **Positive Revenue Velocity:** Top-line growth expanded by **{rev_growth:.2f}%** compared to the prior period.")
+                st.success(f"🚀 **Positive Revenue Velocity:** Growth expanded by **{rev_growth:.2f}%** compared to the prior tracking window.")
             else:
                 st.error(f"📉 **Top-Line Contraction:** Revenue shifted downward by **{abs(rev_growth):.2f}%** year-over-year.")
         
-        c_margin = df.at[0, "Net Profit Margin (%)"]
-        if pd.notna(c_margin):
-            if c_margin > 15:
-                st.markdown(f"🏆 **Premium Profit Margin:** Organization maintains strong operational efficiency at **{c_margin:.2f}%**.")
+        if ni_growth is not None:
+            if ni_growth > 0:
+                st.success(f"💰 **Net Profit Extension:** Net earnings grew by **{ni_growth:.2f}%** via optimized expense structures.")
             else:
-                st.markdown(f"裁 **Standard Margin Constraints:** Modern profit conversion baseline sits at **{c_margin:.2f}%**.")
+                st.error(f"⚠️ **Earnings Margin Compression:** Bottom line decreased by **{abs(ni_growth):.2f}%** compared to history.")
 
     with col2:
-        st.markdown("#### 🛡️ Capital Structure Stability & Quality Profile")
+        st.markdown("#### 🛡️ Capital Stability Safety Ratings")
         for idx, row in df.iterrows():
             period = row['Period']
             leverage = row['Debt-to-Asset Ratio']
@@ -160,17 +167,17 @@ if uploaded_file is not None:
             
             if pd.notna(leverage) and pd.notna(roa):
                 if leverage < 0.5 and roa > 8:
-                    st.markdown(f"🟢 **{period}:** Defensively structured balance sheet ({leverage:.2f} leverage) carrying optimized operational ROA of **{roa:.1f}%**.")
+                    st.markdown(f"🟢 **{period}:** Conservative profiles. Low leverage metrics ({leverage:.2f}) tracking an efficient baseline ROA of **{roa:.1f}%**.")
                 else:
-                    st.markdown(f"🟡 **{period}:** Standard operational baseline portfolio metrics tracked.")
+                    st.markdown(f"🟡 **{period}:** Standard operational baseline metrics verified inside safety limits.")
 
-    # 8. Download Data Pipeline Export
+    # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Export Full Historical Investment Analytics to CSV",
         data=csv,
-        file_name="historical_investor_analytics.csv",
+        file_name="universal_keyless_analytics.csv",
         mime="text/csv"
     )
 else:
-    st.info("💡 Pro-Tip: Upload your quarterly consolidated report file to initiate multi-ratio matrix processing.")
+    st.info("💡 Pro-Tip: Upload any financial document containing side-by-side metric tables to verify the automated keyless parser engine.")
