@@ -53,7 +53,6 @@ if uploaded_file is not None:
                         text_content = page.extract_text()
                         if text_content:
                             for line in text_content.split("\n"):
-                                # Split words on spacing to mock a table row array structure
                                 extracted_rows.append(re.split(r'\s{2,}', line.strip()))
                     else:
                         for table in tables:
@@ -92,16 +91,14 @@ if uploaded_file is not None:
                 numeric_values = []
                 
                 for cell in row:
-                    # Accounting Bracket Detection: Tracks negative balances securely
                     is_negative = "(" in cell or "-" in cell
                     clean_cell = cell.replace(",", "").replace("$", "").replace("(", "").replace(")", "").replace("-", "").strip()
                     
                     if re.match(r'^\d+(\.\d+)?$', clean_cell):
                         val = float(clean_cell)
-                        if val > 10:  # Ignores isolated single footnote tags or index margins
+                        if val > 10:
                             numeric_values.append(-val if is_negative else val)
                 
-                # Dynamic array map to period structure columns
                 if len(numeric_values) >= 2:
                     financial_matrix[metric] = [numeric_values[0], numeric_values[1]]
                 elif len(numeric_values) == 1:
@@ -125,7 +122,6 @@ if uploaded_file is not None:
     # 6. Financial Ratio Analysis Matrix
     st.subheader("📈 Step 3: Comparative Financial Results Analysis")
     
-    # Computation definitions protecting against empty rows
     def safe_margin(r): return (r["Net Income"] / r["Revenue"]) * 100 if pd.notna(r["Net Income"]) and pd.notna(r["Revenue"]) and r["Revenue"] != 0 else None
     def safe_leverage(r): return r["Total Liabilities"] / r["Total Assets"] if pd.notna(r["Total Liabilities"]) and pd.notna(r["Total Assets"]) and r["Total Assets"] != 0 else None
     def safe_equity(r): return r["Total Assets"] - r["Total Liabilities"] if pd.notna(r["Total Assets"]) and pd.notna(r["Total Liabilities"]) else None
@@ -182,9 +178,13 @@ if uploaded_file is not None:
                 st.markdown(f"• **{p} Capital Structure:** Total debt-to-asset leverage score registered at **{lev:.2f}** with calculated total net worth capital base sitting at **${eq:,.2f}**.")
                 st.markdown(f"• **{p} Capital Utilization Productivity:** Net Return on Assets (ROA) performance factor calculated at **{roa:.2f}%**.")
 
-    # 8. Export Compiled Structure
+    # 8. Export Compiled Structure (FULLY CLOSED SYNTAX PARENTHESIS)
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Export Full Performance Analytics Data Model to CSV",
         data=csv,
-
+        file_name="financial_spatial_analytics.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("💡 Pro-Tip: Drop any complex multi-period reporting file to isolate spatial matrix calculations instantly.")
