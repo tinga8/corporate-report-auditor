@@ -34,12 +34,10 @@ if uploaded_file is not None:
         try:
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    # Attempt 1: Extract standard structural text
                     text_content = page.extract_text()
                     if text_content:
                         raw_text += text_content + "\n"
                     
-                    # Attempt 2: Fallback to table layout text boundaries if standard extraction layout is tight
                     tables = page.extract_tables()
                     for table in tables:
                         for row in table:
@@ -64,7 +62,7 @@ if uploaded_file is not None:
         raw_text = uploaded_file.read().decode("utf-8")
         st.success("✅ Raw String Payload Processed.")
 
-    # 4. Universal Fuzzy Synonym Lists
+    # 4. Universal Fuzzy Synonym Lists (Restored to the exact good setup)
     keywords = {
         "Revenue": ["revenue", "sales", "turnover", "operations", "income"],
         "Net Income": ["net income", "profit", "earnings", "pat", "loss"],
@@ -104,8 +102,8 @@ if uploaded_file is not None:
 
     # Structure records into comparative DataFrames
     records = [
-        {"Period": "Current Period", **{k: v[0] for k, v in extracted_metrics.items()}},
-        {"Period": "Prior Period", **{k: v[1] for k, v in extracted_metrics.items()}}
+        {"Period": "Current Period", **{k: extracted_metrics[k][0] for k in keywords.keys()}},
+        {"Period": "Prior Period", **{k: extracted_metrics[k][1] for k in keywords.keys()}}
     ]
     df = pd.DataFrame(records)
     
@@ -140,62 +138,51 @@ if uploaded_file is not None:
         "Return on Assets (%)": "{:.2f}%"
     }, na_rep="Awaiting Alignment"), use_container_width=True)
     
-    # --- NEW ADDITION: STEP 4 DETAILED VERDICT & MEMORANDUM ---
+    # --- FIXED: STEP 4 CLEAN SUMMARY VERDICT LOGIC ---
     st.markdown("---")
-    st.subheader("🎯 Step 4: Final Investment Verdict & Solvency Memorandum")
+    st.subheader("🎯 Step 4: Executive Performance Summary Verdict")
     
-    # Capture metrics for algorithmic grading logic rules
-    c_margin = df.at[0, "Net Profit Margin (%)"]
-    c_leverage = df.at[0, "Debt-to-Asset Ratio"]
-    c_roa = df.at[0, "Return on Assets (%)"]
+    rev = df.at[0, "Revenue"]
+    ni = df.at[0, "Net Income"]
+    assets = df.at[0, "Total Assets"]
+    liab = df.at[0, "Total Liabilities"]
     
-    score = 0
-    total_checks = 0
+    # Summary Evaluation Array
+    summary_bullets = []
+    is_healthy = True
     
-    # Automated Logic Evaluation Flags
-    if pd.notna(c_margin):
-        total_checks += 1
-        if c_margin > 10: score += 1
-    if pd.notna(c_leverage):
-        total_checks += 1
-        if c_leverage < 0.6: score += 1
-    if pd.notna(c_roa):
-        total_checks += 1
-        if c_roa > 5: score += 1
-    if rev_growth is not None:
-        total_checks += 1
-        if rev_growth > 0: score += 1
-
-    # Visual Metric Card Containers
-    card_col1, card_col2 = st.columns([1, 2])
-    
-    with card_col1:
-        if total_checks > 0:
-            rating_percentage = (score / total_checks) * 100
-            if rating_percentage >= 75:
-                st.success("🟩 FINAL VERDICT: STRONG FINANCIAL POSITION")
-            elif rating_percentage >= 50:
-                st.warning("🟨 FINAL VERDICT: STABLE / CAUTIOUS POSITION")
-            else:
-                st.error("🟥 FINAL VERDICT: WEAK / DISTRESSED FINANCIAL POSITION")
+    # 1. Operational Profitability Check
+    if pd.notna(ni):
+        if ni > 0:
+            summary_bullets.append("✅ **Operational Performance:** The company is fully **profitable** and successfully generating positive net returns.")
         else:
-            st.info("ℹ️ Unable to generate structural score due to missing column mappings.")
-
-    with card_col2:
-        st.markdown("#### 🗒️ Credit Analyst Assessment Summary")
-        insights = []
-        if pd.notna(c_margin):
-            if c_margin > 10: insights.append("✅ **Profitability Strength:** Strong net profit metrics confirm solid operational health.")
-            else: insights.append("⚠️ **Profitability Constraint:** Sub-10% net margins leave the enterprise exposed to operating cash friction.")
-        if pd.notna(c_leverage):
-            if c_leverage < 0.6: insights.append("✅ **Balance Sheet Health:** Gearing is inside safe parameters. The asset base insulates liabilities comfortably.")
-            else: insights.append("❌ **High Credit Risk Leverage:** Liabilities swallow a large share of corporate asset values, raising default warning risks.")
-        if rev_growth is not None:
-            if rev_growth > 0: insights.append(f"📈 **Positive Trajectory:** Revenue grew by {rev_growth:.1f}% year-over-year.")
-            else: insights.append(f"📉 **Top-Line Decay:** Core scale contracted by {abs(rev_growth):.1f}% over the prior comparative tracking layout.")
+            is_healthy = False
+            summary_bullets.append("❌ **Operational Performance:** The company is operating at a **net loss**, indicating high structural overhead costs.")
             
-        for insight in insights:
-            st.markdown(insight)
+    # 2. Scale Growth Check
+    if rev_growth is not None:
+        if rev_growth > 0:
+            summary_bullets.append(f"📈 **Revenue Velocity:** Top-line revenue increased by **{rev_growth:.1f}%** year-over-year, showing solid market expansion.")
+        else:
+            summary_bullets.append(f"📉 **Revenue Velocity:** Top-line scale contracted by **{abs(rev_growth):.1f}%**, signaling a business slowdown.")
+
+    # 3. Capital Structure Solvency Check
+    if pd.notna(assets) and pd.notna(liab):
+        if assets > liab:
+            summary_bullets.append("🛡️ **Balance Sheet Cushion:** Total Assets exceed Total Liabilities, leaving a solid **positive equity net worth** container.")
+        else:
+            is_healthy = False
+            summary_bullets.append("⚠️ **Balance Sheet Insolvency Risk:** Total Liabilities exceed Total Assets, creating a dangerous **negative equity profile**.")
+
+    # Display the Final Call banner
+    if is_healthy:
+        st.success("🟩 **FINAL VERDICT SUMMARY: overall FINANCIAL POSITION IS STRONG & HEALTHY**")
+    else:
+        st.warning("🟨 **FINAL VERDICT SUMMARY: FINANCIAL POSITION CARRIES MATERIAL OPERATIONAL OR SOLVENCY RISK**")
+        
+    # Render the scannable summary points
+    for bullet in summary_bullets:
+        st.markdown(bullet)
 
     # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
