@@ -1,7 +1,7 @@
 import re
 import pandas as pd
 import streamlit as st
-from pypdf import PdfReader
+import pdfplumber
 
 # 1. Page Configuration
 st.set_page_config(page_title="Universal Financial Engine", page_icon="📈", layout="wide")
@@ -29,14 +29,14 @@ if uploaded_file is not None:
     file_name = uploaded_file.name
     st.subheader(f"📥 Processing Ingested File: `{file_name}`")
     
-    # PDF Parser Loop
+    # PDF Parser Loop using pdfplumber (Built-in stable execution)
     if file_name.endswith('.pdf'):
         try:
-            pdf_reader = PdfReader(uploaded_file)
-            for page in pdf_reader.pages:
-                text_content = page.extract_text()
-                if text_content:
-                    raw_text += text_content + "\n"
+            with pdfplumber.open(uploaded_file) as pdf:
+                for page in pdf.pages:
+                    text_content = page.extract_text()
+                    if text_content:
+                        raw_text += text_content + "\n"
             st.success("✅ PDF Text Layer Unpacked Successfully.")
         except Exception as e:
             st.error(f"Failed to process PDF text array: {e}")
@@ -56,7 +56,6 @@ if uploaded_file is not None:
         st.success("✅ Raw String Payload Processed.")
 
     # 4. Universal Cross-Company Multi-Period Regex Map
-    # Looks for variations of words and extracts any consecutive numbers on that text row
     universal_patterns = {
         "Revenue": r"(?:Total Revenue|Revenue|Net Sales|Turnover|Revenue from Operations|Income)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
         "Net Income": r"(?:Net Income|Net Profit|Net Earnings|Profit for the period|Profit after Tax|PAT|Profit / \(Loss\))\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
@@ -64,19 +63,15 @@ if uploaded_file is not None:
         "Total Liabilities": r"(?:Total Liabilities|Liabilities)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)"
     }
     
-    # Structural dictionary holding data positions
     period_data = {"Current Period": {}, "Prior Period": {}}
     
     # 5. Core Mathematical Extraction Loop
     for metric, pattern in universal_patterns.items():
-        # Scan line by line to isolate layout blocks cleanly
         match = re.search(pattern, raw_text, re.IGNORECASE)
         if match:
             numbers_segment = match.group(1).strip()
-            # Tokenize numerical sequences out of the filtered spatial row snippet
             tokens = []
             for token in re.split(r'\s+', numbers_segment):
-                # Clean up financial string elements (commas, parentheses for losses)
                 is_negative = "(" in token or "-" in token
                 clean_token = token.replace(",", "").replace("$", "").replace("(", "").replace(")", "").replace("-", "").strip()
                 
@@ -86,7 +81,6 @@ if uploaded_file is not None:
                         val = -val
                     tokens.append(val)
             
-            # Map structural tokens sequentially into column containers
             if len(tokens) >= 2:
                 period_data["Current Period"][metric] = tokens[0]
                 period_data["Prior Period"][metric] = tokens[1]
@@ -100,7 +94,6 @@ if uploaded_file is not None:
             period_data["Current Period"][metric] = None
             period_data["Prior Period"][metric] = None
 
-    # Structuring data into comparative rows
     records = [
         {"Period": "Current Period", **period_data["Current Period"]},
         {"Period": "Prior Period", **period_data["Prior Period"]}
@@ -123,7 +116,6 @@ if uploaded_file is not None:
     df["Equity / Net Worth"] = df["Total Assets"] - df["Total Liabilities"]
     df["Return on Assets (%)"] = (df["Net Income"] / df["Total Assets"]) * 100
     
-    # Horizontal change metrics
     rev_growth = None
     ni_growth = None
     if pd.notna(df.at[0, "Revenue"]) and pd.notna(df.at[1, "Revenue"]) and df.at[1, "Revenue"] != 0:
