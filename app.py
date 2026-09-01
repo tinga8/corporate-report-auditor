@@ -6,14 +6,14 @@ import pdfplumber
 # 1. Page Configuration
 st.set_page_config(page_title="Universal Financial Engine", page_icon="📈", layout="wide")
 st.title("📈 Universal Multi-Year Financial Ingestion & Investor Platform")
-st.caption("Pure Offline Heuristic Table Parsing Pipeline | Engineered for S&P Global, Moody's, and Bloomberg Standards")
+st.caption("Accounting-Aware Keyless Extraction Pipeline | Tailored for S&P Global, Moody's, and Bloomberg Standards")
 
 # 2. Sidebar Process Documentation
 st.sidebar.header("⚙️ Data Processing Matrix")
 st.sidebar.info("""
 - **AI Core:** Zero (Pure Spatial Text Parsing Heuristics).
+- **Accounting Filters:** Automated parentheses-to-negative conversion layer.
 - **Security Profile:** 100% Secure (No APIs, keys, or networks used).
-- **Compatibility:** Structural sequence extraction for any company report.
 - **Execution Cost:** $0 (Forever Free).
 """)
 
@@ -34,12 +34,10 @@ if uploaded_file is not None:
         try:
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    # Attempt 1: Extract standard structural text
                     text_content = page.extract_text()
                     if text_content:
                         raw_text += text_content + "\n"
                     
-                    # Attempt 2: Fallback to table layout text boundaries if standard extraction layout is tight
                     tables = page.extract_tables()
                     for table in tables:
                         for row in table:
@@ -64,10 +62,10 @@ if uploaded_file is not None:
         raw_text = uploaded_file.read().decode("utf-8")
         st.success("✅ Raw String Payload Processed.")
 
-    # 4. Universal Fuzzy Synonym Lists (Handles varied column naming patterns)
+    # 4. Universal Fuzzy Synonym Lists
     keywords = {
         "Revenue": ["revenue", "sales", "turnover", "operations", "income"],
-        "Net Income": ["net income", "profit", "earnings", "pat", "loss"],
+        "Net Income": ["net income", "profit", "earnings", "pat", "loss", "profit/(loss)"],
         "Total Assets": ["assets", "property", "equipment"],
         "Total Liabilities": ["liabilities", "obligations", "equity and liabilities"]
     }
@@ -82,28 +80,25 @@ if uploaded_file is not None:
             line_lower = line.lower()
             
             for metric, aliases in keywords.items():
-                # Check if line matches the structural financial keyword context
                 if any(alias in line_lower for alias in aliases) and extracted_metrics[metric] == [None, None]:
-                    
-                    # Scan nearby lines (up to 2 below) to capture wrapped multi-line numbers
                     search_block = " ".join(lines[idx:idx+3])
                     
-                    # Isolate clean numeric targets using a unified digit scanning regex
+                    # Accounting-aware regex matching numbers, commas, periods, and surrounding parentheses
                     raw_tokens = re.findall(r'\(?\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b\)?', search_block)
                     
                     tokens = []
                     for token in raw_tokens:
-                        is_negative = "(" in token or "-" in token
-                        clean_token = token.replace(",", "").replace("(", "").replace(")", "").strip()
+                        # CRITICAL FIX: Detect if number represents a loss due to surrounding brackets () or minus sign
+                        is_negative = "(" in token or ")" in token or "-" in token
+                        clean_token = token.replace(",", "").replace("(", "").replace(")", "").replace("-", "").strip()
                         try:
                             val = float(clean_token)
-                            # Exclude small trivial indexing numbers or single digits (like page numbers or note references)
                             if val > 10:
+                                # Inject proper mathematical sign mapping layer
                                 tokens.append(-val if is_negative else val)
                         except ValueError:
                             continue
                     
-                    # Filter down to the core multi-period comparative numbers
                     if len(tokens) >= 2:
                         extracted_metrics[metric] = [tokens[0], tokens[1]]
                     elif len(tokens) == 1:
@@ -111,8 +106,8 @@ if uploaded_file is not None:
 
     # Structure records into comparative DataFrames
     records = [
-        {"Period": "Current Period", **{k: v[0] for k, v in extracted_metrics.items()}},
-        {"Period": "Prior Period", **{k: v[1] for k, v in extracted_metrics.items()}}
+        {"Period": "Current Period", **{k: (extracted_metrics[k][0] if extracted_metrics[k] else None) for k in keywords.keys()}},
+        {"Period": "Prior Period", **{k: (extracted_metrics[k][1] if extracted_metrics[k] else None) for k in keywords.keys()}}
     ]
     df = pd.DataFrame(records)
     
@@ -147,43 +142,49 @@ if uploaded_file is not None:
         "Return on Assets (%)": "{:.2f}%"
     }, na_rep="Awaiting Alignment"), use_container_width=True)
     
-    # 7. Deep Analytical Investor Summary
+    # --- STEP 4 SUMMARY VERDICT LOGIC ---
     st.markdown("---")
-    st.subheader("📑 Step 4: Institutional Investor Decision Memorandum")
+    st.subheader("🎯 Step 4: Executive Performance Summary Verdict")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### 📈 Revenue & Profitability Trends")
-        if rev_growth is not None:
-            if rev_growth > 0:
-                st.success(f"🚀 **Positive Revenue Velocity:** Growth expanded by **{rev_growth:.2f}%** compared to the prior tracking window.")
-            else:
-                st.error(f"📉 **Top-Line Contraction:** Revenue shifted downward by **{abs(rev_growth):.2f}%** year-over-year.")
+    ni = df.at[0, "Net Income"]
+    assets = df.at[0, "Total Assets"]
+    liab = df.at[0, "Total Liabilities"]
+    
+    summary_bullets = []
+    is_healthy = True
+    
+    # 1. Operational Profitability Check (Fixed to explicitly register negative float values)
+    if pd.notna(ni):
+        if ni > 0:
+            summary_bullets.append("✅ **Operational Performance:** The company is profitable and successfully generating positive net returns.")
         else:
-            st.info("ℹ️ Structural revenue tracking is operational.")
-        
-        if ni_growth is not None:
-            if ni_growth > 0:
-                st.success(f"💰 **Net Profit Extension:** Net earnings grew by **{ni_growth:.2f}%** via optimized expense structures.")
-            else:
-                st.error(f"⚠️ **Earnings Margin Compression:** Bottom line decreased by **{abs(ni_growth):.2f}%** compared to history.")
-
-    with col2:
-        st.markdown("#### 🛡️ Capital Stability Safety Ratings")
-        has_metrics = False
-        for idx, row in df.iterrows():
-            period = row['Period']
-            leverage = row['Debt-to-Asset Ratio']
-            roa = row['Return on Assets (%)']
+            is_healthy = False
+            summary_bullets.append("❌ **Operational Performance Risk:** The company is operating at a **NET LOSS** (Negative Net Income). Revenue is failing to cover baseline structural overhead costs.")
             
-            if pd.notna(leverage) and pd.notna(roa):
-                has_metrics = True
-                if leverage < 0.5 and roa > 8:
-                    st.markdown(f"🟢 **{period}:** Conservative profiles. Low leverage metrics ({leverage:.2f}) tracking an efficient baseline ROA of **{roa:.1f}%**.")
-                else:
-                    st.markdown(f"🟡 **{period}:** Standard operational baseline metrics verified inside safety limits.")
-        if not has_metrics:
-            st.info("ℹ decline evaluations will map dynamically on text refresh.")
+    # 2. Scale Growth Check
+    if rev_growth is not None:
+        if rev_growth > 0:
+            summary_bullets.append(f"📈 **Revenue Velocity:** Top-line revenue increased by **{rev_growth:.1f}%** year-over-year, demonstrating revenue expansion.")
+        else:
+            summary_bullets.append(f"📉 **Revenue Velocity:** Top-line scale contracted by **{abs(rev_growth):.1f}%**, signaling scaling or volume contraction.")
+
+    # 3. Capital Structure Solvency Check
+    if pd.notna(assets) and pd.notna(liab):
+        if assets > liab:
+            summary_bullets.append("🛡️ **Balance Sheet Cushion:** Total Assets exceed Total Liabilities, maintaining positive equity net worth boundaries.")
+        else:
+            is_healthy = False
+            summary_bullets.append("⚠️ **Balance Sheet Insolvency Risk:** Total Liabilities exceed Total Assets, creating a dangerous **negative equity net worth profile**.")
+
+    # Display the Final Call banner based on data health variables
+    if is_healthy:
+        st.success("🟩 **FINAL VERDICT SUMMARY: OVERALL FINANCIAL POSITION IS STRONG & HEALTHY**")
+    else:
+        st.error("🟥 **FINAL VERDICT SUMMARY: FINANCIAL POSITION CARRIES HIGH RISK / OPERATIONS ARE DISTRESSED**")
+        
+    # Render the scannable summary points
+    for bullet in summary_bullets:
+        st.markdown(bullet)
 
     # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
