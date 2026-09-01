@@ -33,8 +33,8 @@ if uploaded_file is not None:
         try:
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    # Precise layout bounding box extraction captures actual multi-column structures
-                    tables = page.extract_tables(settings={
+                    # CRITICAL FIX: Changed 'settings' to 'table_settings' for newer pdfplumber versions
+                    tables = page.extract_tables(table_settings={
                         "vertical_strategy": "lines",
                         "horizontal_strategy": "lines",
                         "snap_tolerance": 3,
@@ -101,8 +101,8 @@ if uploaded_file is not None:
 
     # Transpile the mapped metrics dictionary directly into structured tracking frames
     records = [
-        {"Period": "Current Period", **{k: financial_matrix[k][0] for k in target_keywords.keys()}},
-        {"Period": "Prior Period", **{k: financial_matrix[k][1] for k in target_keywords.keys()}}
+        {"Period": "Current Period", **{k: (financial_matrix[k][0] if financial_matrix[k] else None) for k in target_keywords.keys()}},
+        {"Period": "Prior Period", **{k: (financial_matrix[k][1] if financial_matrix[k] else None) for k in target_keywords.keys()}}
     ]
     df = pd.DataFrame(records)
 
