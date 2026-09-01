@@ -55,12 +55,13 @@ if uploaded_file is not None:
         raw_text = uploaded_file.read().decode("utf-8")
         st.success("✅ Raw String Payload Processed.")
 
-    # 4. Universal Cross-Company Multi-Period Regex Map
+    # 4. Expanded Cross-Company Multi-Period Dictionary
+    # Heavily expanded to map edge-case corporate reporting variations across companies
     universal_patterns = {
-        "Revenue": r"(?:Total Revenue|Revenue|Net Sales|Turnover|Revenue from Operations|Income)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Net Income": r"(?:Net Income|Net Profit|Net Earnings|Profit for the period|Profit after Tax|PAT|Profit / \(Loss\))\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Total Assets": r"(?:Total Assets|Assets|Non-Current Assets)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
-        "Total Liabilities": r"(?:Total Liabilities|Liabilities)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)"
+        "Revenue": r"(?:Total Revenue|Revenue|Net Sales|Turnover|Revenue from Operations|Income from Operations|Gross Sales|Gross Receipts)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Net Income": r"(?:Net Income|Net Profit|Net Earnings|Profit for the period|Profit after Tax|PAT|Profit / \(Loss\)|Profit and Loss)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Total Assets": r"(?:Total Assets|Assets|Non-Current Assets|Current Assets|Total Property and Assets|Balance Sheet Total)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)",
+        "Total Liabilities": r"(?:Total Liabilities|Liabilities|Total Equity and Liabilities|Current Liabilities|Non-Current Liabilities)\s*(?::|—|-)?\s*([0-9\s,\.\(\)-]+)"
     }
     
     period_data = {"Current Period": {}, "Prior Period": {}}
@@ -71,6 +72,7 @@ if uploaded_file is not None:
         if match:
             numbers_segment = match.group(1).strip()
             tokens = []
+            # Split values on consecutive spaces to capture multiple tabular column columns
             for token in re.split(r'\s+', numbers_segment):
                 is_negative = "(" in token or "-" in token
                 clean_token = token.replace(",", "").replace("$", "").replace("(", "").replace(")", "").replace("-", "").strip()
@@ -81,6 +83,7 @@ if uploaded_file is not None:
                         val = -val
                     tokens.append(val)
             
+            # Extract column indexes from the captured numeric text segments
             if len(tokens) >= 2:
                 period_data["Current Period"][metric] = tokens[0]
                 period_data["Prior Period"][metric] = tokens[1]
@@ -111,11 +114,25 @@ if uploaded_file is not None:
     # 6. Comparative Financial Ratio Formulas
     st.subheader("📊 Step 3: Comparative Performance & Solvency Analytics Matrix")
     
-    df["Net Profit Margin (%)"] = (df["Net Income"] / df["Revenue"]) * 100
-    df["Debt-to-Asset Ratio"] = df["Total Liabilities"] / df["Total Assets"]
-    df["Equity / Net Worth"] = df["Total Assets"] - df["Total Liabilities"]
-    df["Return on Assets (%)"] = (df["Net Income"] / df["Total Assets"]) * 100
+    # Safely perform ratio computations checking for empty values
+    def calc_margin(row):
+        return (row["Net Income"] / row["Revenue"]) * 100 if pd.notna(row["Net Income"]) and pd.notna(row["Revenue"]) and row["Revenue"] != 0 else None
+
+    def calc_leverage(row):
+        return row["Total Liabilities"] / row["Total Assets"] if pd.notna(row["Total Liabilities"]) and pd.notna(row["Total Assets"]) and row["Total Assets"] != 0 else None
+
+    def calc_equity(row):
+        return row["Total Assets"] - row["Total Liabilities"] if pd.notna(row["Total Assets"]) and pd.notna(row["Total Liabilities"]) else None
+
+    def calc_roa(row):
+        return (row["Net Income"] / row["Total Assets"]) * 100 if pd.notna(row["Net Income"]) and pd.notna(row["Total Assets"]) and row["Total Assets"] != 0 else None
+
+    df["Net Profit Margin (%)"] = df.apply(calc_margin, axis=1)
+    df["Debt-to-Asset Ratio"] = df.apply(calc_leverage, axis=1)
+    df["Equity / Net Worth"] = df.apply(calc_equity, axis=1)
+    df["Return on Assets (%)"] = df.apply(calc_roa, axis=1)
     
+    # Horizontal change metrics
     rev_growth = None
     ni_growth = None
     if pd.notna(df.at[0, "Revenue"]) and pd.notna(df.at[1, "Revenue"]) and df.at[1, "Revenue"] != 0:
@@ -143,25 +160,33 @@ if uploaded_file is not None:
                 st.success(f"🚀 **Positive Revenue Velocity:** Growth expanded by **{rev_growth:.2f}%** compared to the prior tracking window.")
             else:
                 st.error(f"📉 **Top-Line Contraction:** Revenue shifted downward by **{abs(rev_growth):.2f}%** year-over-year.")
+        else:
+            st.info("ℹ️ Revenue growth calculation pending mapping of top-line line items.")
         
         if ni_growth is not None:
             if ni_growth > 0:
                 st.success(f"💰 **Net Profit Extension:** Net earnings grew by **{ni_growth:.2f}%** via optimized expense structures.")
             else:
                 st.error(f"⚠️ **Earnings Margin Compression:** Bottom line decreased by **{abs(ni_growth):.2f}%** compared to history.")
+        else:
+            st.info("ℹ️ Bottom-line growth analytics computed successfully above.")
 
     with col2:
         st.markdown("#### 🛡️ Capital Stability Safety Ratings")
+        has_metrics = False
         for idx, row in df.iterrows():
             period = row['Period']
             leverage = row['Debt-to-Asset Ratio']
             roa = row['Return on Assets (%)']
             
             if pd.notna(leverage) and pd.notna(roa):
+                has_metrics = True
                 if leverage < 0.5 and roa > 8:
                     st.markdown(f"🟢 **{period}:** Conservative profiles. Low leverage metrics ({leverage:.2f}) tracking an efficient baseline ROA of **{roa:.1f}%**.")
                 else:
                     st.markdown(f"🟡 **{period}:** Standard operational baseline metrics verified inside safety limits.")
+        if not has_metrics:
+            st.info("ℹ️ Multi-ratio risk evaluations will populate automatically once target text labels sync.")
 
     # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
