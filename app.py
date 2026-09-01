@@ -1,6 +1,7 @@
 import re
 import pandas as pd
 import streamlit as st
+from pypdf import PdfReader
 
 # 1. UI Configuration
 st.set_page_config(page_title="Financial Data Specialist Pipeline", page_icon="📊", layout="wide")
@@ -10,37 +11,47 @@ st.caption("Production-Grade Data Collection Framework tailored for S&P Global, 
 # 2. Sidebar Architecture Summary
 st.sidebar.header("⚙️ Data Engineering Engine")
 st.sidebar.info("""
-- **Formats:** PDF Layouts, Unstructured Text, Raw Excel Sheets.
+- **Formats:** PDF Documents, Unstructured Text, Raw Excel Sheets.
 - **Normalization:** RegEx mapping and numeric cleansing.
 - **Data Quality (DQ):** Mathematical logic guards.
-- **Cost:** $0 (Zero API dependancies).
+- **Cost:** $0 (Zero API dependencies).
 """)
 
-# 3. Multi-Format File Ingestion
+# 3. Multi-Format File Ingestion (NOW ACCEPTS PDF)
 uploaded_file = st.file_uploader(
-    "Upload Financial Document (Accepts: .txt, .xlsx, .xls)", 
-    type=["txt", "xlsx", "xls"]
+    "Upload Financial Document (Accepts: .pdf, .txt, .xlsx, .xls)", 
+    type=["pdf", "txt", "xlsx", "xls"]
 )
 
-# Note for PDF Handling: PDF parsing in pure cloud environments requires external binaries.
-# To keep this pipeline 100% free and zero-setup, we provide instant extraction for Text and Excel.
-
 raw_text = ""
-excel_df = None
 
 if uploaded_file is not None:
     file_name = uploaded_file.name
     st.subheader(f"📥 Processing Ingested File: `{file_name}`")
     
+    # --- NEW: HANDLING PDF FILES ---
+    if file_name.endswith('.pdf'):
+        try:
+            pdf_reader = PdfReader(uploaded_file)
+            # Combine text from all pages of the PDF
+            for page in pdf_reader.pages:
+                text_content = page.extract_text()
+                if text_content:
+                    raw_text += text_content + "\n"
+            
+            st.success("✅ PDF Document Parsed Successfully.")
+            with st.expander("View Raw Extracted Text from PDF"):
+                st.text(raw_text[:1000] + "...")
+        except Exception as e:
+            st.error(f"Failed to parse PDF: {e}")
+
     # --- HANDLING EXCEL FILES ---
-    if file_name.endswith(('.xlsx', '.xls')):
+    elif file_name.endswith(('.xlsx', '.xls')):
         try:
             excel_df = pd.read_excel(uploaded_file)
             st.success("✅ Excel Sheet Loaded Successfully.")
             with st.expander("View Raw Ingested Sheet Structure"):
                 st.dataframe(excel_df.head(10))
-            
-            # Flatten Excel data to text for the extraction engine to analyze
             raw_text = excel_df.to_string()
         except Exception as e:
             st.error(f"Failed to parse Excel: {e}")
@@ -52,7 +63,7 @@ if uploaded_file is not None:
         with st.expander("View Raw Text Snippet"):
             st.text(raw_text[:1000] + "...")
 
-    # 4. Standardized Regex Parser Engine (Replicating Fundamental Team Rules)
+    # 4. Standardized Regex Parser Engine
     metrics = {
         "Revenue": [r"(?:Revenue|Total Revenue|Net Sales|Turnover)\s*(?::|—|-)?\s*\$?([\d,\.]+)\s*(?:billion|million|M|B)?"],
         "Net Income": [r"(?:Net Income|Net Profit|Net Earnings|Earnings Available)\s*(?::|—|-)?\s*\$?([\d,\.]+)\s*(?:billion|million|M|B)?"],
@@ -69,7 +80,6 @@ if uploaded_file is not None:
             match = re.search(pattern, raw_text, re.IGNORECASE)
             if match:
                 raw_val = match.group(1)
-                # Stripping spaces, currency symbols, and accounting commas
                 clean_val = float(raw_val.replace(",", "").replace("$", "").strip())
                 extracted_data[metric] = clean_val
                 break
@@ -115,4 +125,4 @@ if uploaded_file is not None:
             mime="text/csv"
         )
 else:
-    st.info("💡 Pro-Tip: Upload a text report or Excel spreadsheet containing fundamental figures to see the extraction pipeline process in real time.")
+    st.info("💡 Pro-Tip: Upload a PDF report, text report, or Excel spreadsheet containing fundamental figures to see the extraction pipeline process in real time.")
