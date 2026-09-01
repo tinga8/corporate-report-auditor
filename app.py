@@ -64,7 +64,7 @@ if uploaded_file is not None:
         raw_text = uploaded_file.read().decode("utf-8")
         st.success("✅ Raw String Payload Processed.")
 
-    # 4. Universal Fuzzy Synonym Lists (Handles varied column naming patterns)
+    # 4. Universal Fuzzy Synonym Lists
     keywords = {
         "Revenue": ["revenue", "sales", "turnover", "operations", "income"],
         "Net Income": ["net income", "profit", "earnings", "pat", "loss"],
@@ -82,13 +82,8 @@ if uploaded_file is not None:
             line_lower = line.lower()
             
             for metric, aliases in keywords.items():
-                # Check if line matches the structural financial keyword context
                 if any(alias in line_lower for alias in aliases) and extracted_metrics[metric] == [None, None]:
-                    
-                    # Scan nearby lines (up to 2 below) to capture wrapped multi-line numbers
                     search_block = " ".join(lines[idx:idx+3])
-                    
-                    # Isolate clean numeric targets using a unified digit scanning regex
                     raw_tokens = re.findall(r'\(?\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b\)?', search_block)
                     
                     tokens = []
@@ -97,13 +92,11 @@ if uploaded_file is not None:
                         clean_token = token.replace(",", "").replace("(", "").replace(")", "").strip()
                         try:
                             val = float(clean_token)
-                            # Exclude small trivial indexing numbers or single digits (like page numbers or note references)
                             if val > 10:
                                 tokens.append(-val if is_negative else val)
                         except ValueError:
                             continue
                     
-                    # Filter down to the core multi-period comparative numbers
                     if len(tokens) >= 2:
                         extracted_metrics[metric] = [tokens[0], tokens[1]]
                     elif len(tokens) == 1:
@@ -147,43 +140,62 @@ if uploaded_file is not None:
         "Return on Assets (%)": "{:.2f}%"
     }, na_rep="Awaiting Alignment"), use_container_width=True)
     
-    # 7. Deep Analytical Investor Summary
+    # --- NEW ADDITION: STEP 4 DETAILED VERDICT & MEMORANDUM ---
     st.markdown("---")
-    st.subheader("📑 Step 4: Institutional Investor Decision Memorandum")
+    st.subheader("🎯 Step 4: Final Investment Verdict & Solvency Memorandum")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### 📈 Revenue & Profitability Trends")
-        if rev_growth is not None:
-            if rev_growth > 0:
-                st.success(f"🚀 **Positive Revenue Velocity:** Growth expanded by **{rev_growth:.2f}%** compared to the prior tracking window.")
-            else:
-                st.error(f"📉 **Top-Line Contraction:** Revenue shifted downward by **{abs(rev_growth):.2f}%** year-over-year.")
-        else:
-            st.info("ℹ️ Structural revenue tracking is operational.")
-        
-        if ni_growth is not None:
-            if ni_growth > 0:
-                st.success(f"💰 **Net Profit Extension:** Net earnings grew by **{ni_growth:.2f}%** via optimized expense structures.")
-            else:
-                st.error(f"⚠️ **Earnings Margin Compression:** Bottom line decreased by **{abs(ni_growth):.2f}%** compared to history.")
+    # Capture metrics for algorithmic grading logic rules
+    c_margin = df.at[0, "Net Profit Margin (%)"]
+    c_leverage = df.at[0, "Debt-to-Asset Ratio"]
+    c_roa = df.at[0, "Return on Assets (%)"]
+    
+    score = 0
+    total_checks = 0
+    
+    # Automated Logic Evaluation Flags
+    if pd.notna(c_margin):
+        total_checks += 1
+        if c_margin > 10: score += 1
+    if pd.notna(c_leverage):
+        total_checks += 1
+        if c_leverage < 0.6: score += 1
+    if pd.notna(c_roa):
+        total_checks += 1
+        if c_roa > 5: score += 1
+    if rev_growth is not None:
+        total_checks += 1
+        if rev_growth > 0: score += 1
 
-    with col2:
-        st.markdown("#### 🛡️ Capital Stability Safety Ratings")
-        has_metrics = False
-        for idx, row in df.iterrows():
-            period = row['Period']
-            leverage = row['Debt-to-Asset Ratio']
-            roa = row['Return on Assets (%)']
+    # Visual Metric Card Containers
+    card_col1, card_col2 = st.columns([1, 2])
+    
+    with card_col1:
+        if total_checks > 0:
+            rating_percentage = (score / total_checks) * 100
+            if rating_percentage >= 75:
+                st.success("🟩 FINAL VERDICT: STRONG FINANCIAL POSITION")
+            elif rating_percentage >= 50:
+                st.warning("🟨 FINAL VERDICT: STABLE / CAUTIOUS POSITION")
+            else:
+                st.error("🟥 FINAL VERDICT: WEAK / DISTRESSED FINANCIAL POSITION")
+        else:
+            st.info("ℹ️ Unable to generate structural score due to missing column mappings.")
+
+    with card_col2:
+        st.markdown("#### 🗒️ Credit Analyst Assessment Summary")
+        insights = []
+        if pd.notna(c_margin):
+            if c_margin > 10: insights.append("✅ **Profitability Strength:** Strong net profit metrics confirm solid operational health.")
+            else: insights.append("⚠️ **Profitability Constraint:** Sub-10% net margins leave the enterprise exposed to operating cash friction.")
+        if pd.notna(c_leverage):
+            if c_leverage < 0.6: insights.append("✅ **Balance Sheet Health:** Gearing is inside safe parameters. The asset base insulates liabilities comfortably.")
+            else: insights.append("❌ **High Credit Risk Leverage:** Liabilities swallow a large share of corporate asset values, raising default warning risks.")
+        if rev_growth is not None:
+            if rev_growth > 0: insights.append(f"📈 **Positive Trajectory:** Revenue grew by {rev_growth:.1f}% year-over-year.")
+            else: insights.append(f"📉 **Top-Line Decay:** Core scale contracted by {abs(rev_growth):.1f}% over the prior comparative tracking layout.")
             
-            if pd.notna(leverage) and pd.notna(roa):
-                has_metrics = True
-                if leverage < 0.5 and roa > 8:
-                    st.markdown(f"🟢 **{period}:** Conservative profiles. Low leverage metrics ({leverage:.2f}) tracking an efficient baseline ROA of **{roa:.1f}%**.")
-                else:
-                    st.markdown(f"🟡 **{period}:** Standard operational baseline metrics verified inside safety limits.")
-        if not has_metrics:
-            st.info("ℹ decline evaluations will map dynamically on text refresh.")
+        for insight in insights:
+            st.markdown(insight)
 
     # 8. Export Data
     csv = df.to_csv(index=False).encode('utf-8')
